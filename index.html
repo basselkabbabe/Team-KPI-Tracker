@@ -590,8 +590,35 @@ function updateMemberPassword(i,v){S.members[i].password=v;}
 function updateKpiName(i,v){S.kpis[i].name=v;}
 function updateKpiUnit(i,v){S.kpis[i].unit=v;}
 function updateKpiCat(i,v){S.kpis[i].cat=v;}
-function togA(mid,kid,v){if(!S.assignments)S.assignments={};if(!S.assignments[mid])S.assignments[mid]={};const currentGoal=(S.assignments[mid][kid]&&S.assignments[mid][kid].g)?S.assignments[mid][kid].g:0;S.assignments[mid][kid]={a:v,g:currentGoal};const g=document.getElementById(`g_${mid}_${kid}`);if(g){g.disabled=!v;if(!v)g.value='';}}
-function setG(mid,kid,v){if(!S.assignments)S.assignments={};if(!S.assignments[mid])S.assignments[mid]={};const currentAssigned=(S.assignments[mid][kid]&&S.assignments[mid][kid].a)?true:false;S.assignments[mid][kid]={a:currentAssigned,g:Number(v)||0};}
+function togA(mid,kid,v){
+  if(!S.assignments)S.assignments={};
+  if(!S.assignments[mid])S.assignments[mid]={};
+  if(!S.assignments[mid][kid])S.assignments[mid][kid]={a:false,g:0};
+  const currentGoal=S.assignments[mid][kid].g||0;
+  S.assignments[mid][kid]={a:v,g:currentGoal};
+  const g=document.getElementById(`g_${mid}_${kid}`);
+  if(g){
+    g.disabled=!v;
+    if(!v){
+      g.value='';
+      S.assignments[mid][kid].g=0;
+    }
+  }
+}
+function setG(mid,kid,v){
+  if(!S.assignments)S.assignments={};
+  if(!S.assignments[mid])S.assignments[mid]={};
+  if(!S.assignments[mid][kid])S.assignments[mid][kid]={a:false,g:0};
+  S.assignments[mid][kid].g=Number(v)||0;
+  // If setting a goal, make sure it's also assigned
+  if(Number(v)>0 && !S.assignments[mid][kid].a){
+    S.assignments[mid][kid].a=true;
+    const checkbox=document.querySelector(`input[type="checkbox"][onchange*="togA(${mid},${kid}"]`);
+    if(checkbox)checkbox.checked=true;
+    const goalInput=document.getElementById(`g_${mid}_${kid}`);
+    if(goalInput)goalInput.disabled=false;
+  }
+}
 function addMember(){if(!S.members)S.members=[];S.members.push({id:Date.now(),name:'New Member',role:'',password:'password123'});rAdmin();}
 function rmMember(id){S.members=(S.members||[]).filter(m=>m.id!==id);rAdmin();}
 function addKpi(){if(!S.kpis)S.kpis=[];S.kpis.push({id:Date.now(),name:'New KPI',unit:'units',cat:'tasks'});rAdmin();}
