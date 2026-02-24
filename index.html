@@ -350,6 +350,16 @@ body{font-family:'Mulish',sans-serif;background:var(--cream);color:var(--text);m
     <div class="panel" id="panel-admin">
       <div class="sh">Admin</div>
       <div class="ss">Configure team, KPIs, and assignments.</div>
+
+      <div class="acrd">
+        <h3>View Individual Performance</h3>
+        <p>Select a team member to view their dashboard and entries.</p>
+        <select class="psel" id="viewMemberSel" onchange="viewMemberPerformance()" style="margin-bottom:12px;">
+          <option value="">-- Select Member --</option>
+        </select>
+        <div id="memberPerformance"></div>
+      </div>
+
       <div class="acrd">
         <h3>Team Members</h3>
         <div class="srows" id="memberSetup"></div>
@@ -374,6 +384,13 @@ body{font-family:'Mulish',sans-serif;background:var(--cream);color:var(--text);m
           <option value="Quarterly">Quarterly</option>
           <option value="Annual">Annual</option>
         </select>
+      </div>
+
+      <div class="acrd">
+        <h3>Admin Password</h3>
+        <p>Change the password required to access admin panel.</p>
+        <input type="text" class="finput" id="adminPwInput" placeholder="Enter new password" style="margin-bottom:12px;"/>
+        <button class="actbtn" onclick="changeAdminPassword()">Update Password</button>
       </div>
     </div>
   </div>
@@ -406,9 +423,25 @@ function copyRules(){navigator.clipboard.writeText(document.getElementById('rule
 // State
 const COLORS=['ac0','ac1','ac2','ac3','ac4'];
 const CAT={sales:{label:'Sales & Revenue',icon:'💰',kc:'k-sales',hc:'sales',p:'r',f:'fr'},tasks:{label:'Task Completion',icon:'✅',kc:'k-tasks',hc:'tasks',p:'g',f:'fg'},outreach:{label:'Calls & Outreach',icon:'📞',kc:'k-outreach',hc:'outreach',p:'b',f:'fb'},other:{label:'Other',icon:'📌',kc:'k-other',hc:'other',p:'o',f:'fo'}};
-const DEF={period:'Monthly',members:[{id:1,name:'Sarah Chen',role:'Sales Executive'},{id:2,name:'Marcus Lee',role:'Account Manager'},{id:3,name:'Aisha Patel',role:'BDR'},{id:4,name:'Tom Rivera',role:'Sales Rep'}],kpis:[{id:1,name:'Revenue Closed',unit:'$',cat:'sales'},{id:2,name:'Deals Signed',unit:'deals',cat:'sales'},{id:3,name:'Tasks Completed',unit:'tasks',cat:'tasks'},{id:4,name:'Reports Filed',unit:'rpts',cat:'tasks'},{id:5,name:'Calls Made',unit:'calls',cat:'outreach'},{id:6,name:'Meetings Booked',unit:'mtgs',cat:'outreach'}],assignments:{1:{1:{a:true,g:20000},2:{a:true,g:6},5:{a:true,g:80},6:{a:true,g:12}},2:{1:{a:true,g:15000},2:{a:true,g:4},5:{a:true,g:100},6:{a:true,g:15}},3:{3:{a:true,g:60},4:{a:true,g:10},5:{a:true,g:150},6:{a:true,g:20}},4:{1:{a:true,g:10000},3:{a:true,g:40},5:{a:true,g:90},6:{a:true,g:10}}},entries:[]};
+const DEF={period:'Monthly',adminPassword:'admin123',members:[{id:1,name:'Sarah Chen',role:'Sales Executive',password:'sarah123'},{id:2,name:'Marcus Lee',role:'Account Manager',password:'marcus123'},{id:3,name:'Aisha Patel',role:'BDR',password:'aisha123'},{id:4,name:'Tom Rivera',role:'Sales Rep',password:'tom123'}],kpis:[{id:1,name:'Revenue Closed',unit:'$',cat:'sales'},{id:2,name:'Deals Signed',unit:'deals',cat:'sales'},{id:3,name:'Tasks Completed',unit:'tasks',cat:'tasks'},{id:4,name:'Reports Filed',unit:'rpts',cat:'tasks'},{id:5,name:'Calls Made',unit:'calls',cat:'outreach'},{id:6,name:'Meetings Booked',unit:'mtgs',cat:'outreach'}],assignments:{1:{1:{a:true,g:20000},2:{a:true,g:6},5:{a:true,g:80},6:{a:true,g:12}},2:{1:{a:true,g:15000},2:{a:true,g:4},5:{a:true,g:100},6:{a:true,g:15}},3:{3:{a:true,g:60},4:{a:true,g:10},5:{a:true,g:150},6:{a:true,g:20}},4:{1:{a:true,g:10000},3:{a:true,g:40},5:{a:true,g:90},6:{a:true,g:10}}},entries:[]};
 let S=JSON.parse(JSON.stringify(DEF));
 let CU=null,CT='dashboard',timer=null;
+
+// Helper functions - MUST be defined before any function that uses them
+const ini=n=>n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+const clr=i=>COLORS[i%COLORS.length];
+const mon=()=>new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'});
+const tod=()=>new Date().toISOString().split('T')[0];
+const pct=(v,g)=>g?Math.min(100,Math.round(v/g*100)):0;
+const pC=p=>p>=80?'g':p>=50?'o':'r';
+const fC=p=>p>=80?'fg':p>=50?'fo':'fr';
+const fmt=(v,u)=>u==='$'?'$'+Number(v).toLocaleString():Number(v).toLocaleString()+' '+u;
+function asgn(mid){const m=(S.assignments||{})[mid]||{};return(S.kpis||[]).filter(k=>m[k.id]&&m[k.id].a).map(k=>({kpi:k,goal:m[k.id].g||0}));}
+function mTot(mid,kid){return(S.entries||[]).filter(e=>e.mid===mid&&e.kid===kid).reduce((s,e)=>s+Number(e.v),0);}
+function tTot(kid){return(S.entries||[]).filter(e=>e.kid===kid).reduce((s,e)=>s+Number(e.v),0);}
+function tGoal(kid){return(S.members||[]).reduce((s,m)=>{const a=((S.assignments||{})[m.id]||{})[kid];return s+(a&&a.a?Number(a.g||0):0);},0);}
+function mCats(mid){const s=new Set(),arr=[];asgn(mid).forEach(({kpi})=>{if(!s.has(kpi.cat)){s.add(kpi.cat);arr.push(kpi.cat);}});return arr;}
+function cPct(mid,cat){const ks=asgn(mid).filter(({kpi})=>kpi.cat===cat);return ks.length?Math.round(ks.reduce((s,{kpi,goal})=>s+pct(mTot(mid,kpi.id),goal),0)/ks.length):0;}
 
 // Setup
 function setMsg(id,msg,type){const el=document.getElementById(id);el.className='smsg '+type;el.textContent=msg;}
@@ -517,26 +550,11 @@ async function push(){
 
 function setSB(t,tx){const b=document.getElementById('sbadge');if(!b)return;b.className='sbadge '+t;b.querySelector('.sbd').className='sbd'+(t==='sync'?' spin':'');document.getElementById('stxt').textContent=tx;}
 
-// Helpers
-const ini=n=>n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-const clr=i=>COLORS[i%COLORS.length];
-const mon=()=>new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'});
-const tod=()=>new Date().toISOString().split('T')[0];
-const pct=(v,g)=>g?Math.min(100,Math.round(v/g*100)):0;
-const pC=p=>p>=80?'g':p>=50?'o':'r';
-const fC=p=>p>=80?'fg':p>=50?'fo':'fr';
-const fmt=(v,u)=>u==='$'?'$'+Number(v).toLocaleString():Number(v).toLocaleString()+' '+u;
-function asgn(mid){const m=(S.assignments||{})[mid]||{};return(S.kpis||[]).filter(k=>m[k.id]&&m[k.id].a).map(k=>({kpi:k,goal:m[k.id].g||0}));}
-function mTot(mid,kid){return(S.entries||[]).filter(e=>e.mid===mid&&e.kid===kid).reduce((s,e)=>s+Number(e.v),0);}
-function tTot(kid){return(S.entries||[]).filter(e=>e.kid===kid).reduce((s,e)=>s+Number(e.v),0);}
-function tGoal(kid){return(S.members||[]).reduce((s,m)=>{const a=((S.assignments||{})[m.id]||{})[kid];return s+(a&&a.a?Number(a.g||0):0);},0);}
-function mCats(mid){const s=new Set(),arr=[];asgn(mid).forEach(({kpi})=>{if(!s.has(kpi.cat)){s.add(kpi.cat);arr.push(kpi.cat);}});return arr;}
-function cPct(mid,cat){const ks=asgn(mid).filter(({kpi})=>kpi.cat===cat);return ks.length?Math.round(ks.reduce((s,{kpi,goal})=>s+pct(mTot(mid,kpi.id),goal),0)/ks.length):0;}
-
-// Boot
-function renderLogin(){document.getElementById('loginMonth').textContent='📅 '+mon();document.getElementById('memberGrid').innerHTML=(S.members||[]).map((m,i)=>{const n=asgn(m.id).length;return `<button class="mbtn" onclick="loginAs(${m.id})"><div class="av ${clr(i)}">${ini(m.name)}</div><div class="nm">${m.name}</div><div class="rl">${m.role||''}</div><div class="kc">${n} KPI${n!==1?'s':''}</div></button>`;}).join('');}
+// Login & Render functions
+function renderLogin(){document.getElementById('loginMonth').textContent='📅 '+mon();const options=(S.members||[]).map(m=>`<option value="${m.id}">${m.name}</option>`).join('');document.getElementById('memberGrid').innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;text-align:center;"><div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--text);">Select Your Name</div><select id="memberSelect" style="width:100%;padding:12px;font-size:14px;border:1.5px solid var(--border);border-radius:9px;background:var(--cream);color:var(--text);outline:none;margin-bottom:16px;"><option value="">-- Choose --</option>${options}</select><button onclick="loginSelectedMember()" style="width:100%;background:var(--red);color:#fff;border:none;border-radius:10px;padding:13px;font-family:'Mulish',sans-serif;font-size:14px;font-weight:800;cursor:pointer;">Continue →</button></div>`;}
+function loginSelectedMember(){const sel=document.getElementById('memberSelect');const id=parseInt(sel.value);if(!id){alert('Please select your name');return;}const member=S.members.find(m=>m.id===id);if(!member){alert('Member not found');return;}const pw=prompt('Enter your password:');if(pw!==(member.password||'')){alert('Incorrect password');return;}loginAs(id);}
 function loginAs(id){CU=S.members.find(m=>m.id===id);if(!CU)return;bootApp(false);}
-function loginAdmin(){CU={admin:true,name:'Admin',id:0};bootApp(true);}
+function loginAdmin(){const pw=prompt('Enter Admin Password:');if(pw!==(S.adminPassword||'admin123')){alert('Incorrect password');return;}CU={admin:true,name:'Admin',id:0};bootApp(true);}
 function signOut(){CU=null;if(timer)clearInterval(timer);document.getElementById('loginScreen').classList.remove('hidden');document.getElementById('appScreen').classList.add('hidden');renderLogin();autoSync();}
 function bootApp(isAdmin){document.getElementById('loginScreen').classList.add('hidden');document.getElementById('appScreen').classList.remove('hidden');const mi=isAdmin?0:S.members.indexOf(CU);const col=isAdmin?'ac4':clr(mi);const av=document.getElementById('tbAv');av.textContent=isAdmin?'⚙':ini(CU.name);av.className='tbav '+col;document.getElementById('tbName').textContent=CU.name;document.getElementById('tbSub').textContent=isAdmin?'Administrator':(CU.role||'');document.getElementById('tbPill').textContent=(S.period||'Monthly')+' · '+mon();document.querySelectorAll('.ao').forEach(el=>el.classList.toggle('hidden',!isAdmin));document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById('panel-dashboard').classList.add('active');document.querySelector('.tab').classList.add('active');CT='dashboard';renderAll();}
 function showTab(n,b){
@@ -565,15 +583,16 @@ function rEntry(){const uid=CU.admin?S.members[0]?.id:CU.id;document.getElementB
 async function saveEntry(){const uid=CU.admin?S.members[0]?.id:CU.id;if(!uid)return;const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='Saving…';const td=tod();let saved=0;(asgn(uid)||[]).forEach(({kpi})=>{const el=document.getElementById('ei_'+kpi.id);if(!el)return;const v=parseFloat(el.value);if(!isNaN(v)&&v>0){if(!S.entries)S.entries=[];S.entries.push({id:Date.now()+Math.random(),mid:uid,kid:kpi.id,v,date:td});el.value='';saved++;}});if(!saved){btn.disabled=false;btn.textContent='✓ Save Entry';return;}await push();renderAll();btn.disabled=false;btn.textContent='✓ Save Entry';showToast('✓ Entry saved!');}
 function rTeam(){const el=document.getElementById('teamBlocks');const vis=(S.kpis||[]).filter(k=>(S.members||[]).some(m=>{const a=((S.assignments||{})[m.id]||{})[k.id];return a&&a.a;}));if(!vis.length){el.innerHTML='<div class="empty"><div class="ei">📊</div><p>No KPIs assigned.</p></div>';return;}el.innerHTML=vis.map(k=>{const m=CAT[k.cat]||CAT.other;const ta=tTot(k.id);const tg=tGoal(k.id);const p=pct(ta,tg);const rem=Math.max(0,tg-ta);const ac=(S.members||[]).filter(mb=>{const a=((S.assignments||{})[mb.id]||{})[k.id];return a&&a.a;}).length;return `<div class="tcard"><div class="thd"><div><div class="tname">${m.icon} ${k.name}</div><div class="tcat">${m.label}</div><div class="tac">${ac} member${ac!==1?'s':''}</div></div><div class="trt"><div class="tpct ${pC(p)}">${p}%</div><div class="tsub">of team target</div></div></div><div class="bigbar"><div class="bigfill ${fC(p)}" style="width:${p}%"></div></div><div class="teamrow"><span>Achieved: <strong>${fmt(ta,k.unit)}</strong></span><span>Target: <strong>${fmt(tg,k.unit)}</strong></span><span>Remaining: <strong>${fmt(rem,k.unit)}</strong></span></div></div>`;}).join('');}
 function rHist(){const uid=CU.admin?null:CU.id;const entries=[...(S.entries||[])].filter(e=>uid===null||e.mid===uid).sort((a,b)=>b.date.localeCompare(a.date)||(b.id-a.id)).slice(0,100);const el=document.getElementById('histList');if(!entries.length){el.innerHTML='<div class="empty"><div class="ei">📅</div><p>No entries yet.</p></div>';return;}el.innerHTML=entries.map(e=>{const kpi=(S.kpis||[]).find(k=>k.id===e.kid);const mem=(S.members||[]).find(m=>m.id===e.mid);if(!kpi)return'';const m=CAT[kpi.cat]||CAT.other;const ds=new Date(e.date+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});const mt=CU.admin&&mem?`<span style="font-size:11px;color:var(--muted);margin-left:8px">(${mem.name})</span>`:'';return `<div class="hentry"><div><div class="hdate">${ds}</div><div class="hkpi">${kpi.name}<span class="hcat ${m.hc}">${m.label}</span>${mt}</div></div><div class="hval">+${Number(e.v).toLocaleString()} <span class="hu">${kpi.unit}</span></div></div>`;}).join('');}
-function rAdmin(){document.getElementById('memberSetup').innerHTML=(S.members||[]).map((m,i)=>`<div class="srow"><div class="tbav ${clr(i)}" style="width:30px;height:30px;font-size:12px;border-radius:7px">${ini(m.name)}</div><input class="sin" type="text" value="${m.name}" oninput="updateMemberName(${i},this.value)" placeholder="Name"/><input class="sin" type="text" value="${m.role||''}" oninput="updateMemberRole(${i},this.value)" placeholder="Role" style="max-width:150px"/><button class="rmbtn" onclick="rmMember(${m.id})">×</button></div>`).join('');document.getElementById('kpiSetup').innerHTML=(S.kpis||[]).map((k,i)=>`<div class="srow"><input class="sin" type="text" value="${k.name}" oninput="updateKpiName(${i},this.value)" placeholder="KPI" style="min-width:120px"/><input class="sin" type="text" value="${k.unit}" oninput="updateKpiUnit(${i},this.value)" placeholder="Unit" style="max-width:70px"/><select class="scat" onchange="updateKpiCat(${i},this.value)">${['sales','tasks','outreach','other'].map(c=>`<option value="${c}"${k.cat===c?' selected':''}>${CAT[c].label}</option>`).join('')}</select><button class="rmbtn" onclick="rmKpi(${k.id})">×</button></div>`).join('');const mbs=S.members||[],kpis=S.kpis||[];if(!mbs.length||!kpis.length){document.getElementById('assignTable').innerHTML='<tr><td style="padding:20px;color:var(--muted)">Add members and KPIs first.</td></tr>';return;}const hc=mbs.map((_,i)=>`<th class="c"><div class="tbav ${clr(i)}" style="width:26px;height:26px;font-size:11px;border-radius:6px;margin:0 auto 4px;color:#fff">${ini(mbs[i].name)}</div>${mbs[i].name.split(' ')[0]}</th>`).join('');const rows=kpis.map(k=>{const cells=mbs.map(m=>{const a=((S.assignments||{})[m.id]||{})[k.id]||{a:false,g:0};return `<td class="c"><input type="checkbox" class="ach" ${a.a?'checked':''} onchange="togA(${m.id},${k.id},this.checked)"/><br><input type="number" class="ginput" value="${a.g||''}" placeholder="goal" ${a.a?'':'disabled'} id="g_${m.id}_${k.id}" onchange="setG(${m.id},${k.id},this.value)" min="0"/></td>`;}).join('');const m=CAT[k.cat]||CAT.other;return `<tr><td style="font-weight:700">${m.icon} ${k.name}<br><span style="font-size:11px;color:var(--muted);font-weight:400">${k.unit} · ${m.label}</span></td>${cells}</tr>`;}).join('');document.getElementById('assignTable').innerHTML=`<thead><tr><th>KPI</th>${hc}</tr></thead><tbody>${rows}</tbody>`;document.getElementById('periodSel').value=S.period||'Monthly';}
+function rAdmin(){document.getElementById('memberSetup').innerHTML=(S.members||[]).map((m,i)=>`<div class="srow"><div class="tbav ${clr(i)}" style="width:30px;height:30px;font-size:12px;border-radius:7px">${ini(m.name)}</div><input class="sin" type="text" value="${m.name}" oninput="updateMemberName(${i},this.value)" placeholder="Name"/><input class="sin" type="text" value="${m.role||''}" oninput="updateMemberRole(${i},this.value)" placeholder="Role" style="max-width:130px"/><input class="sin" type="text" value="${m.password||''}" oninput="updateMemberPassword(${i},this.value)" placeholder="Password" style="max-width:100px"/><button class="rmbtn" onclick="rmMember(${m.id})">×</button></div>`).join('');document.getElementById('kpiSetup').innerHTML=(S.kpis||[]).map((k,i)=>`<div class="srow"><input class="sin" type="text" value="${k.name}" oninput="updateKpiName(${i},this.value)" placeholder="KPI" style="min-width:120px"/><input class="sin" type="text" value="${k.unit}" oninput="updateKpiUnit(${i},this.value)" placeholder="Unit" style="max-width:70px"/><select class="scat" onchange="updateKpiCat(${i},this.value)">${['sales','tasks','outreach','other'].map(c=>`<option value="${c}"${k.cat===c?' selected':''}>${CAT[c].label}</option>`).join('')}</select><button class="rmbtn" onclick="rmKpi(${k.id})">×</button></div>`).join('');const mbs=S.members||[],kpis=S.kpis||[];if(!mbs.length||!kpis.length){document.getElementById('assignTable').innerHTML='<tr><td style="padding:20px;color:var(--muted)">Add members and KPIs first.</td></tr>';return;}const hc=mbs.map((_,i)=>`<th class="c"><div class="tbav ${clr(i)}" style="width:26px;height:26px;font-size:11px;border-radius:6px;margin:0 auto 4px;color:#fff">${ini(mbs[i].name)}</div>${mbs[i].name.split(' ')[0]}</th>`).join('');const rows=kpis.map(k=>{const cells=mbs.map(m=>{const a=((S.assignments||{})[m.id]||{})[k.id]||{a:false,g:0};return `<td class="c"><input type="checkbox" class="ach" ${a.a?'checked':''} onchange="togA(${m.id},${k.id},this.checked)"/><br><input type="number" class="ginput" value="${a.g||''}" placeholder="goal" ${a.a?'':'disabled'} id="g_${m.id}_${k.id}" onchange="setG(${m.id},${k.id},this.value)" min="0"/></td>`;}).join('');const m=CAT[k.cat]||CAT.other;return `<tr><td style="font-weight:700">${m.icon} ${k.name}<br><span style="font-size:11px;color:var(--muted);font-weight:400">${k.unit} · ${m.label}</span></td>${cells}</tr>`;}).join('');document.getElementById('assignTable').innerHTML=`<thead><tr><th>KPI</th>${hc}</tr></thead><tbody>${rows}</tbody>`;document.getElementById('periodSel').value=S.period||'Monthly';document.getElementById('adminPwInput').value=S.adminPassword||'admin123';const viewSel=document.getElementById('viewMemberSel');if(viewSel){viewSel.innerHTML='<option value="">-- Select Member --</option>'+(S.members||[]).map(m=>`<option value="${m.id}">${m.name}</option>`).join('');}}
 function updateMemberName(i,v){S.members[i].name=v;}
 function updateMemberRole(i,v){S.members[i].role=v;}
+function updateMemberPassword(i,v){S.members[i].password=v;}
 function updateKpiName(i,v){S.kpis[i].name=v;}
 function updateKpiUnit(i,v){S.kpis[i].unit=v;}
 function updateKpiCat(i,v){S.kpis[i].cat=v;}
-function togA(mid,kid,v){if(!S.assignments)S.assignments={};if(!S.assignments[mid])S.assignments[mid]={};if(!S.assignments[mid][kid])S.assignments[mid][kid]={a:false,g:0};S.assignments[mid][kid].a=v;const g=document.getElementById(`g_${mid}_${kid}`);if(g)g.disabled=!v;}
-function setG(mid,kid,v){if(!S.assignments)S.assignments={};if(!S.assignments[mid])S.assignments[mid]={};if(!S.assignments[mid][kid])S.assignments[mid][kid]={a:true,g:0};S.assignments[mid][kid].g=Number(v)||0;}
-function addMember(){if(!S.members)S.members=[];S.members.push({id:Date.now(),name:'New Member',role:''});rAdmin();}
+function togA(mid,kid,v){if(!S.assignments)S.assignments={};if(!S.assignments[mid])S.assignments[mid]={};const currentGoal=(S.assignments[mid][kid]&&S.assignments[mid][kid].g)?S.assignments[mid][kid].g:0;S.assignments[mid][kid]={a:v,g:currentGoal};const g=document.getElementById(`g_${mid}_${kid}`);if(g){g.disabled=!v;if(!v)g.value='';}}
+function setG(mid,kid,v){if(!S.assignments)S.assignments={};if(!S.assignments[mid])S.assignments[mid]={};const currentAssigned=(S.assignments[mid][kid]&&S.assignments[mid][kid].a)?true:false;S.assignments[mid][kid]={a:currentAssigned,g:Number(v)||0};}
+function addMember(){if(!S.members)S.members=[];S.members.push({id:Date.now(),name:'New Member',role:'',password:'password123'});rAdmin();}
 function rmMember(id){S.members=(S.members||[]).filter(m=>m.id!==id);rAdmin();}
 function addKpi(){if(!S.kpis)S.kpis=[];S.kpis.push({id:Date.now(),name:'New KPI',unit:'units',cat:'tasks'});rAdmin();}
 function rmKpi(id){S.kpis=(S.kpis||[]).filter(k=>k.id!==id);rAdmin();}
@@ -598,6 +617,8 @@ async function saveAdmin(){
   }catch(e){}
 }
 async function resetEntries(){if(!confirm('Clear all entries?'))return;S.entries=[];await push();renderAll();}
+async function changeAdminPassword(){const newPw=document.getElementById('adminPwInput').value.trim();if(!newPw){alert('Password cannot be empty');return;}if(confirm('Change admin password to: '+newPw+'?')){S.adminPassword=newPw;await push();showToast('✓ Password updated!');}}
+function viewMemberPerformance(){const sel=document.getElementById('viewMemberSel');const mid=parseInt(sel.value);const container=document.getElementById('memberPerformance');if(!mid){container.innerHTML='';return;}const member=S.members.find(m=>m.id===mid);if(!member){container.innerHTML='';return;}const assigned=asgn(mid);if(!assigned.length){container.innerHTML='<p style="color:var(--muted);padding:20px;text-align:center;">No KPIs assigned to this member.</p>';return;}let html='<div style="margin-top:20px;"><h4 style="margin-bottom:12px;">'+member.name+'\'s KPIs</h4>';html+='<div style="display:flex;flex-direction:column;gap:10px;">';assigned.forEach(({kpi,goal})=>{const val=mTot(mid,kpi.id);const p=pct(val,goal);const m=CAT[kpi.cat]||CAT.other;html+=`<div style="background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:14px;"><div style="font-weight:700;margin-bottom:4px;">${m.icon} ${kpi.name}</div><div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Achieved: <strong style="color:var(--text)">${fmt(val,kpi.unit)}</strong> / Goal: <strong style="color:var(--text)">${fmt(goal,kpi.unit)}</strong></div><div style="height:6px;background:var(--warm2);border-radius:99px;overflow:hidden;"><div style="height:100%;width:${p}%;background:var(${p>=80?'--green':p>=50?'--orange':'--red'});border-radius:99px;"></div></div><div style="font-size:11px;margin-top:4px;text-align:right;font-weight:700;color:var(${p>=80?'--green':p>=50?'--orange':'--red'})">${p}%</div></div>`;});html+='</div></div>';container.innerHTML=html;}
 function showToast(msg,bg){const t=document.getElementById('toast');t.textContent=msg;t.style.background=bg||'var(--green)';t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2000);}
 </script>
 </body>
